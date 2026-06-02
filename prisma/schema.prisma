@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  phone        String     @unique
+  passwordHash String
+  role         Role       @default(HOUSEHOLD)
+  fullName     String?
+  address      String?
+  fcmToken     String?
+  isVerified   Boolean    @default(false)
+  status       UserStatus @default(ACTIVE)
+
+  // Collector-specific fields
+  isOnline     Boolean    @default(false)
+  vehicleType  String?
+  vehiclePlate String?
+  rating       Float      @default(5.0)
+  totalPickups Int        @default(0)
+  lastLat      Float?
+  lastLng      Float?
+  lastSeenAt   DateTime?
+
+  refreshTokens     RefreshToken[]
+  otpRecords        OtpRecord[]
+  householdBookings Booking[]      @relation("HouseholdBookings")
+  collectorBookings Booking[]      @relation("CollectorBookings")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model OtpRecord {
+  id        String     @id @default(cuid())
+  phone     String
+  otp       String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  used      Boolean    @default(false)
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@map("otp_records")
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  householdId String
+  household   User          @relation("HouseholdBookings", fields: [householdId], references: [id])
+  collectorId String?
+  collector   User?         @relation("CollectorBookings", fields: [collectorId], references: [id])
+
+  status BookingStatus @default(PENDING)
+
+  // Waste details
+  binSize         BinSize
+  extraBags       Int     @default(0)
+  baseAmount      Decimal @db.Decimal(10, 2)
+  extraBagsAmount Decimal @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal @db.Decimal(10, 2)
+
+  // Location
+  pickupAddress String
+  pickupLat     Float
+  pickupLng     Float
+
+  // Payment
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(UNPAID)
+  paystackRef   String?       @unique
+
+  // Scheduling
+  scheduledDate DateTime?
+
+  // Timestamps
+  acceptedAt  DateTime?
+  enRouteAt   DateTime?
+  arrivedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookings")
+}
+
+enum Role {
+  HOUSEHOLD
+  COLLECTOR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+  PASSWORD_RESET
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum BinSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum PaymentMethod {
+  MTN_MOMO
+  VODAFONE_CASH
+  AIRTELTIGO
+  CASH
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
